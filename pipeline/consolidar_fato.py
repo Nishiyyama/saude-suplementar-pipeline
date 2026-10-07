@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── MAPEAMENTO DE CONTAS ────────────────────────────────────────────────
-# Mapeamento atualizado com os códigos exatos extraídos do arquivo.csv
 CONTAS = {
     "contraprestacoes_efetivas": ["31"],  # RECEITAS COM OPERAÇÕES DE ASSISTÊNCIA A SAÚDE
     "despesas_assistenciais": ["41"],  # EVENTOS INDENIZÁVEIS LÍQUIDOS / SINISTROS RETIDOS
@@ -50,7 +49,6 @@ def popular_dim_periodo(engine):
     )
     df["data_fim"] = pd.to_datetime(df["data_fim"]).dt.date
 
-    # ── Correção: TRUNCATE seguro para não quebrar a chave estrangeira da Fato
     with engine.begin() as conn:
         conn.execute(text("SET FOREIGN_KEY_CHECKS=0;"))
         conn.execute(text("TRUNCATE TABLE dim_periodo;"))
@@ -74,13 +72,17 @@ def consolidar(engine):
 
     df_stg["data_ref"] = pd.to_datetime(df_stg["data_ref"])
 
-    # Garantir que as contas sejam strings exatas para o cruzamento
+    # Nova estratégia: Extrair o Ano e o Trimestre diretamente da data
+    df_stg["ano_ref"] = df_stg["data_ref"].dt.year
+    df_stg["trim_ref"] = df_stg["data_ref"].dt.quarter
+
     df_stg["cd_conta_contabil"] = df_stg["cd_conta_contabil"].astype(str)
 
     linhas = []
     for (id_p, ano, trim, rotulo, data_fim) in PERIODOS:
-        data = pd.to_datetime(data_fim)
-        df_p = df_stg[df_stg["data_ref"] == data]
+        # Cruzamento feito por Ano e Trimestre (mais robusto que buscar a data exata)
+        df_p = df_stg[(df_stg["ano_ref"] == ano) & (df_stg["trim_ref"] == trim)]
+
         if df_p.empty:
             print(f"  Sem dados para {rotulo}")
             continue
@@ -104,7 +106,6 @@ def consolidar(engine):
 
     df_fato = pd.DataFrame(linhas)
 
-    # ── Correção: TRUNCATE na tabela fato_financeiro preservando as Primary Keys e relacionamentos
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE fato_financeiro;"))
 
