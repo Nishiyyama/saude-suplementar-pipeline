@@ -1,0 +1,7 @@
+requests
+beautifulsoup4
+pandas
+sqlalchemy
+mysql-connector-python
+streamlit
+python-dotenv
