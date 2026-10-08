@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, URL
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,11 +8,11 @@ load_dotenv()
 # ── MAPEAMENTO DE CONTAS ────────────────────────────────────────────────
 CONTAS = {
     "contraprestacoes_efetivas": ["31"],  # RECEITAS COM OPERAÇÕES DE ASSISTÊNCIA A SAÚDE
-    "despesas_assistenciais": ["41"],  # EVENTOS INDENIZÁVEIS LÍQUIDOS / SINISTROS RETIDOS
-    "resultado_liquido": ["6"],  # CONTAS DE DESTINAÇÃO/APURAÇÃO DE RESULTADO
-    "ativo_total": ["1"],  # ATIVO
-    "passivo_total": ["2"],  # PASSIVO
-    "patrimonio_liquido": ["25"],  # PATRIMÔNIO LÍQUIDO / PATRIMÔNIO SOCIAL
+    "despesas_assistenciais": ["41"],     # EVENTOS INDENIZÁVEIS LÍQUIDOS / SINISTROS RETIDOS
+    "resultado_liquido": ["6"],           # CONTAS DE DESTINAÇÃO/APURAÇÃO DE RESULTADO
+    "ativo_total": ["1"],                 # ATIVO
+    "passivo_total": ["2"],               # PASSIVO
+    "patrimonio_liquido": ["25"],         # PATRIMÔNIO LÍQUIDO / PATRIMÔNIO SOCIAL
 }
 
 # ── PERÍODOS DO ESTUDO ──────────────────────────────────────────────────
@@ -32,15 +32,15 @@ PERIODOS = [
     (20261, 2026, 1, "1T2026", "2026-03-31"),
 ]
 
-
 def conectar():
-    senha = os.getenv('DB_SENHA', '')
-    if senha:
-        url = f"mysql+mysqlconnector://{os.getenv('DB_USUARIO')}:{senha}@{os.getenv('DB_HOST')}/{os.getenv('DB_NOME')}"
-    else:
-        url = f"mysql+mysqlconnector://{os.getenv('DB_USUARIO')}@{os.getenv('DB_HOST')}/{os.getenv('DB_NOME')}"
+    url = URL.create(
+        drivername="mysql+mysqlconnector",
+        username=os.getenv("DB_USUARIO", "root"),
+        password=os.getenv("DB_SENHA") or None,
+        host=os.getenv("DB_HOST", "localhost"),
+        database=os.getenv("DB_NOME", "saude_suplementar")
+    )
     return create_engine(url)
-
 
 def popular_dim_periodo(engine):
     df = pd.DataFrame(
@@ -57,11 +57,9 @@ def popular_dim_periodo(engine):
     df.to_sql("dim_periodo", engine, if_exists="append", index=False)
     print(f"OK: {len(df)} períodos na dim_periodo")
 
-
 def soma_contas(df_op: pd.DataFrame, codigos: list) -> float:
     sub = df_op[df_op["cd_conta_contabil"].isin(codigos)]
     return sub["vl_saldo_final"].sum() if not sub.empty else None
-
 
 def consolidar(engine):
     print("Lendo staging...")
@@ -70,21 +68,17 @@ def consolidar(engine):
         print("AVISO: staging vazia. Rode primeiro: python pipeline/carregar_staging.py")
         return
 
-    df_stg["data_ref"] = pd.to_datetime(df_stg["data_ref"])
-
-    # Nova estratégia: Extrair o Ano e o Trimestre diretamente da data
-    df_stg["ano_ref"] = df_stg["data_ref"].dt.year
-    df_stg["trim_ref"] = df_stg["data_ref"].dt.quarter
-
+    # Forçar a coluna código contábil a ser string
     df_stg["cd_conta_contabil"] = df_stg["cd_conta_contabil"].astype(str)
 
     linhas = []
     for (id_p, ano, trim, rotulo, data_fim) in PERIODOS:
-        # Cruzamento feito por Ano e Trimestre (mais robusto que buscar a data exata)
-        df_p = df_stg[(df_stg["ano_ref"] == ano) & (df_stg["trim_ref"] == trim)]
+        # Estratégia blindada: Cruzar diretamente pelo nome do arquivo do qual o dado foi extraído
+        nome_arq = f"{rotulo}.zip"
+        df_p = df_stg[df_stg["arquivo_origem"] == nome_arq]
 
         if df_p.empty:
-            print(f"  Sem dados para {rotulo}")
+            print(f"  Sem dados para {rotulo} (arquivo esperado: {nome_arq})")
             continue
 
         for reg in df_p["registro_ans"].unique():
@@ -112,13 +106,11 @@ def consolidar(engine):
     df_fato.to_sql("fato_financeiro", engine, if_exists="append", index=False)
     print(f"OK: {len(df_fato)} linhas na fato_financeiro")
 
-
 def executar():
     engine = conectar()
     popular_dim_periodo(engine)
     consolidar(engine)
     print("\nConsolidação concluída.")
-
 
 if __name__ == "__main__":
     executar()

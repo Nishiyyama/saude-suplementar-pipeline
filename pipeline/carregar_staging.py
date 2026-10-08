@@ -2,7 +2,7 @@ import os
 import zipfile
 import pandas as pd
 from pathlib import Path
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, URL
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,11 +13,14 @@ PASTA_DOWNLOADS = Path("downloads")
 OPERADORAS = ["005711", "000582"]
 
 def conectar():
-    senha = os.getenv('DB_SENHA', '')
-    if senha:
-        url = f"mysql+mysqlconnector://{os.getenv('DB_USUARIO')}:{senha}@{os.getenv('DB_HOST')}/{os.getenv('DB_NOME')}"
-    else:
-        url = f"mysql+mysqlconnector://{os.getenv('DB_USUARIO')}@{os.getenv('DB_HOST')}/{os.getenv('DB_NOME')}"
+    # Construtor de URL oficial que codifica o '@' da senha automaticamente
+    url = URL.create(
+        drivername="mysql+mysqlconnector",
+        username=os.getenv("DB_USUARIO", "root"),
+        password=os.getenv("DB_SENHA") or None,
+        host=os.getenv("DB_HOST", "localhost"),
+        database=os.getenv("DB_NOME", "saude_suplementar")
+    )
     return create_engine(url)
 
 def ja_carregado(engine, nome_arquivo: str) -> bool:
@@ -74,9 +77,9 @@ def padronizar(df: pd.DataFrame, nome_arquivo: str) -> pd.DataFrame:
     df["registro_ans"] = df["registro_ans"].astype(str).str.strip().str.zfill(6)
     df = df[df["registro_ans"].isin(OPERADORAS)].copy()
 
-    # converter tipos
+    # converter tipos com format="mixed" para lidar com diferentes formatos de data
     df["data_ref"] = pd.to_datetime(
-        df["data_ref"], format="%Y%m%d", errors="coerce"
+        df["data_ref"], format="mixed", dayfirst=True, errors="coerce"
     ).dt.date
 
     for col in ["vl_saldo_inicial", "vl_saldo_final"]:
