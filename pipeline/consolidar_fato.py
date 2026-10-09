@@ -7,12 +7,12 @@ load_dotenv()
 
 # ── MAPEAMENTO DE CONTAS ────────────────────────────────────────────────
 CONTAS = {
-    "contraprestacoes_efetivas": ["31"],  # RECEITAS COM OPERAÇÕES DE ASSISTÊNCIA A SAÚDE
-    "despesas_assistenciais": ["41"],     # EVENTOS INDENIZÁVEIS LÍQUIDOS / SINISTROS RETIDOS
-    "resultado_liquido": ["6"],           # CONTAS DE DESTINAÇÃO/APURAÇÃO DE RESULTADO
-    "ativo_total": ["1"],                 # ATIVO
-    "passivo_total": ["2"],               # PASSIVO
-    "patrimonio_liquido": ["25"],         # PATRIMÔNIO LÍQUIDO / PATRIMÔNIO SOCIAL
+    "contraprestacoes_efetivas": ["31"],   # Receitas com operações de assistência à saúde
+    "despesas_assistenciais":    ["41"],   # Eventos indenizáveis líquidos / sinistros retidos
+    "resultado_liquido":         ["6"],    # Contas de destinação/apuração de resultado
+    "ativo_total":               ["1"],    # Ativo
+    "passivo_total":             ["2"],    # Passivo (sem PL)
+    "patrimonio_liquido":        ["25"],   # Patrimônio líquido
 }
 
 # ── PERÍODOS DO ESTUDO ──────────────────────────────────────────────────
